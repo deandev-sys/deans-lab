@@ -1,6 +1,7 @@
 import React from 'react';
 import { User, ExamResult } from '../types';
-import { TrendingUp, Target, Award, ArrowRight, Activity, BookOpen, Clock } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Trophy, TrendingUp, Calendar, ChevronRight } from 'lucide-react';
 
 interface DashboardProps {
   user: User | null;
@@ -8,133 +9,155 @@ interface DashboardProps {
   onNavigate: (page: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, results, onNavigate }) => {
-  // Statistik Dasar (Dikalkulasi Otomatis dari Database)
+export const Dashboard: React.FC<DashboardProps> = ({ user, results, onNavigate }) => {
+  // --- STATISTIK DASAR (Dari Kode Asli Lu) ---
   const totalExams = results.length;
-  // --- PERBAIKAN: Menggunakan ?? agar nilai 0 tidak dianggap undefined/NaN ---
-  const scores = results.map(r => (r as any).total_score ?? r.totalScore ?? 0);
+  const scores = results.map(r => (r as any).total_score ?? (r as any).totalScore ?? 0);
   const highestScore = totalExams > 0 ? Math.max(...scores) : 0;
   const averageScore = totalExams > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / totalExams) : 0;
 
-  // Data Grafik (Dibalik agar ujian tertua di kiri, terbaru di kanan)
-  const chartData = [...results].reverse();
+  // --- DATA GRAFIK RECHARTS ---
+  // Dibalik agar ujian tertua di kiri, terbaru di kanan
+  const chartData = [...results].reverse().map((r, idx) => ({
+     name: `TO ${idx + 1}`,
+     score: (r as any).total_score ?? (r as any).totalScore ?? 0
+  }));
+
+  // Helper untuk menentukan status lencana (Badge)
+  const getScoreStatus = (score: number) => {
+     if (score >= 700) return 'Mantap';
+     if (score >= 500) return 'Oke';
+     return 'Cukup';
+  };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-24 animate-fade-in">
-      {/* Header Welcome */}
-      <div className="bg-[#1e3a8a] rounded-[2.5rem] p-8 md:p-12 text-white shadow-xl relative overflow-hidden">
-         <div className="relative z-10">
-            <h1 className="text-3xl md:text-4xl font-black mb-2">Halo, {user?.name?.split(' ')[0]}! 👋</h1>
-            <p className="text-blue-200 md:text-lg">Selamat datang di pusat komando belajarmu. Mari hancurkan rekor hari ini!</p>
-         </div>
-         <Target className="absolute -right-10 -top-10 text-blue-800/50 w-64 h-64 z-0" />
+    <div className="space-y-8 animate-fade-in pb-10">
+      {/* 1. Welcome Banner */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-900 dark:to-teal-900 rounded-3xl p-8 text-white relative overflow-hidden shadow-lg">
+        <div className="relative z-10">
+            <h1 className="text-3xl font-bold mb-2">Halo, {user?.name?.split(' ')[0] || 'Pejuang PTN'}! 👋</h1>
+            <p className="text-emerald-100 max-w-lg">
+              {totalExams > 0 
+                ? "Progresmu terekam dengan baik. Terus pertahankan konsistensimu, sedikit lagi menuju kampus impian! Gass pol teruss!" 
+                : "Selamat datang di pusat komando belajarmu. Yuk mulai kerjakan Try Out pertamamu hari ini!"}
+            </p>
+        </div>
+        <div className="absolute right-0 top-0 h-full w-1/3 bg-white/10 skew-x-12 transform translate-x-12"></div>
       </div>
 
-      {/* Quick Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6 transition-transform hover:-translate-y-1">
-            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0">
-               <Award size={28} />
-            </div>
+      {/* 2. Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-start justify-between group hover:border-emerald-500/50 transition-colors">
             <div>
-               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Skor Tertinggi</p>
-               <p className="text-3xl font-black text-slate-800">{highestScore}</p>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Skor Tertinggi</p>
+                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{highestScore}</h3>
             </div>
-         </div>
-         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6 transition-transform hover:-translate-y-1">
-            <div className="w-14 h-14 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center shrink-0">
-               <Activity size={28} />
+            <div className="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl group-hover:scale-110 transition-transform">
+                <Trophy size={24} />
             </div>
+        </div>
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-start justify-between group hover:border-emerald-500/50 transition-colors">
             <div>
-               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Rata-rata Skor</p>
-               <p className="text-3xl font-black text-slate-800">{averageScore}</p>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Rata-rata Skor</p>
+                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{averageScore}</h3>
             </div>
-         </div>
-         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6 transition-transform hover:-translate-y-1">
-            <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
-               <BookOpen size={28} />
+             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl group-hover:scale-110 transition-transform">
+                <TrendingUp size={24} />
             </div>
+        </div>
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-start justify-between group hover:border-emerald-500/50 transition-colors">
             <div>
-               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Try Out</p>
-               <p className="text-3xl font-black text-slate-800">{totalExams}</p>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Total Try Out</p>
+                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{totalExams}</h3>
             </div>
-         </div>
+             <div className="p-3 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl group-hover:scale-110 transition-transform">
+                <Calendar size={24} />
+            </div>
+        </div>
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-         {/* Grafik Progres Dinamis */}
-         <div className="lg:col-span-2 bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-            <div className="flex justify-between items-center mb-8">
-               <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
-                 <TrendingUp className="text-emerald-500" /> Grafik Progres
-               </h2>
+      {/* 3. Charts & History Section */}
+      <div className="grid lg:grid-cols-3 gap-8">
+        
+        {/* Grafik Area Recharts */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Grafik Progres Skor IRT</h3>
             </div>
             
             {totalExams >= 2 ? (
-               <div className="flex items-end gap-2 md:gap-4 h-56 mt-6 pb-2 border-b-2 border-slate-100">
-                  {chartData.map((res, idx) => {
-                     // --- PERBAIKAN DI SINI JUGA ---
-                     const score = (res as any).total_score ?? res.totalScore ?? 0;
-                     // Kalkulasi tinggi batang (minimal 5% agar selalu terlihat meski skor kecil/nol)
-                     const heightPercent = Math.max((score / 1000) * 100, 5); 
-                     
-                     return (
-                        <div key={idx} className="flex-1 flex flex-col items-center gap-3 group h-full justify-end">
-                           <div className="w-full bg-slate-50 rounded-t-xl relative h-full flex items-end overflow-visible">
-                              <div 
-                                className="w-full bg-[#1e3a8a] rounded-t-xl transition-all duration-700 relative group-hover:bg-blue-500 shadow-sm" 
-                                style={{ height: `${heightPercent}%` }}
-                              >
-                                 {/* Tooltip Hover */}
-                                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none shadow-xl">
-                                    Skor: {score}
-                                 </div>
-                              </div>
-                           </div>
-                           <p className="text-[10px] font-bold text-slate-400 truncate w-full text-center uppercase">TO {idx + 1}</p>
-                        </div>
-                     )
-                  })}
-               </div>
+              <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData}>
+                          <defs>
+                              <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                              </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-800" />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} domain={[0, 1000]} />
+                          <Tooltip 
+                              contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff' }}
+                              itemStyle={{ color: '#10b981', fontWeight: 'bold' }}
+                              cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '4 4' }}
+                          />
+                          <Area type="monotone" dataKey="score" name="Skor" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" />
+                      </AreaChart>
+                  </ResponsiveContainer>
+              </div>
             ) : (
-               <div className="h-56 flex flex-col items-center justify-center text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-                  <Activity className="text-slate-300 mb-3" size={40} />
-                  <p className="text-slate-500 font-bold">Data Belum Cukup</p>
-                  <p className="text-sm text-slate-400 mt-1 max-w-xs">Kerjakan minimal 2 Try Out untuk melihat grafik perkembangan nilaimu.</p>
-               </div>
+              <div className="h-[300px] w-full flex flex-col items-center justify-center text-center bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                 <TrendingUp className="text-slate-300 dark:text-slate-500 mb-3" size={40} />
+                 <p className="text-slate-500 dark:text-slate-400 font-bold">Data Belum Cukup</p>
+                 <p className="text-sm text-slate-400 mt-1 max-w-xs">Kerjakan minimal 2 Try Out untuk melihat grafik perkembangan nilaimu.</p>
+              </div>
             )}
-         </div>
+        </div>
 
-         {/* Recent History List */}
-         <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-full">
-            <div className="flex justify-between items-center mb-8">
-               <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
-                 <Clock className="text-orange-500" /> Riwayat Terakhir
-               </h2>
-               <button onClick={() => onNavigate('history')} className="text-sm font-bold text-blue-600 hover:text-blue-800">Lihat Semua</button>
-            </div>
-
+        {/* Riwayat Terbaru */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Riwayat Terbaru</h3>
             <div className="space-y-4 flex-1">
-               {results.length > 0 ? results.slice(0, 4).map((r, idx) => (
-                  <div key={r.id || idx} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100 hover:border-blue-200 transition-colors cursor-pointer group" onClick={() => onNavigate('history')}>
-                     <div>
-                        <p className="font-bold text-slate-700 text-sm truncate max-w-[150px] sm:max-w-[200px] group-hover:text-[#1e3a8a] transition-colors">{(r as any).package_title || r.packageTitle}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{r.date || new Date((r as any).created_at).toLocaleDateString()}</p>
-                     </div>
-                     <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 font-black text-emerald-500 text-sm shadow-sm">
-                        {/* --- PERBAIKAN DI SINI JUGA --- */}
-                        {(r as any).total_score ?? r.totalScore ?? 0}
-                     </div>
-                  </div>
-               )) : (
-                  <div className="text-center py-10">
-                     <p className="text-slate-400 font-medium text-sm">Belum ada riwayat ujian.</p>
-                     <button onClick={() => onNavigate('catalog')} className="mt-4 px-6 py-2 bg-[#1e3a8a] text-white text-xs font-black uppercase rounded-xl hover:bg-blue-800 transition-colors shadow-lg">Kerjakan Sekarang</button>
-                  </div>
-               )}
+                {results.length > 0 ? results.slice(0, 4).map((r, i) => {
+                    const score = (r as any).total_score ?? (r as any).totalScore ?? 0;
+                    const status = getScoreStatus(score);
+                    
+                    return (
+                      <div key={r.id || i} onClick={() => onNavigate('history')} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors cursor-pointer group">
+                          <div className="pr-4">
+                              <p className="font-semibold text-sm text-slate-900 dark:text-slate-200 group-hover:text-emerald-500 transition-colors line-clamp-1">
+                                {(r as any).package_title || (r as any).packageTitle}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5">{r.date || new Date((r as any).created_at).toLocaleDateString('id-ID')}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                               <div className="font-black text-slate-900 dark:text-white text-base">{score}</div>
+                               <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 uppercase tracking-wider
+                                  ${status === 'Mantap' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 
+                                    status === 'Oke' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                                    'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}
+                               `}>
+                                  {status}
+                               </div>
+                          </div>
+                      </div>
+                    )
+                }) : (
+                   <div className="flex flex-col items-center justify-center h-full text-center py-10 opacity-60">
+                      <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Belum ada riwayat ujian.</p>
+                   </div>
+                )}
             </div>
-         </div>
+            
+            {results.length > 0 && (
+              <button onClick={() => onNavigate('history')} className="w-full mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-center gap-2 text-sm font-semibold text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                  Lihat Semua Riwayat <ChevronRight size={16} />
+              </button>
+            )}
+        </div>
+
       </div>
     </div>
   );

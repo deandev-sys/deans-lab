@@ -3,8 +3,11 @@ import { Package, Plus, Trash2, Eye, Database, TrendingUp, X, Save, Edit3, Book,
 import { supabase } from '../src/lib/supabase';
 import { ExamPackage, Question } from '../types';
 
-// --- FUNGSI PARSER CSV (Tetap sama) ---
+// --- FUNGSI PARSER CSV (UPGRADE: Auto-Detect Delimiter Koma atau Titik Koma Excel) ---
 const parseCSV = (csvText: string) => {
+  const firstLine = csvText.split('\n')[0] || '';
+  const delimiter = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+
   const rows: string[][] = [];
   let currentRow: string[] = [];
   let currentCell = '';
@@ -23,7 +26,7 @@ const parseCSV = (csvText: string) => {
     } else {
       if (char === '"') {
         inQuotes = true;
-      } else if (char === ',') {
+      } else if (char === delimiter) {
         currentRow.push(currentCell);
         currentCell = '';
       } else if (char === '\n' || char === '\r') {
@@ -64,7 +67,7 @@ const AdminPanel: React.FC = () => {
   // Package Form States
   const [newPkgTitle, setNewPkgTitle] = useState('');
   const [newPkgPrice, setNewPkgPrice] = useState('');
-  const [newPkgLynkUrl, setNewPkgLynkUrl] = useState(''); // <--- STATE BARU
+  const [newPkgLynkUrl, setNewPkgLynkUrl] = useState(''); 
   const [newPkgType, setNewPkgType] = useState<'FULL' | 'MINI'>('FULL');
   const [newPkgSubject, setNewPkgSubject] = useState('Penalaran Umum');
   const [newPkgTopic, setNewPkgTopic] = useState('Campuran');
@@ -75,6 +78,7 @@ const AdminPanel: React.FC = () => {
   const [qPassage, setQPassage] = useState('');
   const [qText, setQText] = useState('');
   const [qImageUrl, setQImageUrl] = useState('');
+  const [qDifficulty, setQDifficulty] = useState<number>(3); // <--- STATE BARU: TINGKAT KESULITAN
   const [qChoices, setQChoices] = useState({ A: '', B: '', C: '', D: '', E: '' });
   const [qCorrect, setQCorrect] = useState('A');
   const [qExplanation, setQExplanation] = useState('');
@@ -90,6 +94,7 @@ const AdminPanel: React.FC = () => {
   // Subtest Form States
   const [stTitle, setStTitle] = useState('Penalaran Umum');
   const [stDuration, setStDuration] = useState('30');
+  const [stVideoId, setStVideoId] = useState(''); // <--- STATE BARU: VIDEO DRIVE ID
   const [pkgSubtests, setPkgSubtests] = useState<any[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,7 +124,7 @@ const AdminPanel: React.FC = () => {
       package_type: newPkgType, 
       subject: finalSubject,    
       topic: finalTopic,
-      lynk_url: newPkgLynkUrl, // <--- SIMPAN KE DB
+      lynk_url: newPkgLynkUrl, 
       created_at: new Date().toISOString()
     }]);
 
@@ -128,7 +133,7 @@ const AdminPanel: React.FC = () => {
       fetchAdminPackages();
       setNewPkgTitle('');
       setNewPkgPrice('');
-      setNewPkgLynkUrl(''); // Reset field
+      setNewPkgLynkUrl(''); 
       setNewPkgType('FULL');
       setCurrentView('list');
     } else {
@@ -152,16 +157,15 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  // ... (Reset Question Form logic sama)
   const resetQuestionForm = () => {
     setEditQId(null);
     setQPassage(''); setQText(''); setQImageUrl(''); setQExplanation('');
+    setQDifficulty(3); // Reset difficulty ke 3
     setQChoices({ A: '', B: '', C: '', D: '', E: '' });
     setQShortAnswer('');
     setQStatements([{ id: 's1', text: '', correctValue: true }, { id: 's2', text: '', correctValue: false }, { id: 's3', text: '', correctValue: true }]);
   };
 
-  // ... (Fetch Questions, Subtests, dll sama persis)
   const fetchQuestionsForPackage = async (packageId: string) => {
     setIsLoading(true);
     const { data, error } = await supabase.from('questions').select('*').eq('package_id', packageId);
@@ -186,6 +190,7 @@ const AdminPanel: React.FC = () => {
       passage: qPassage,
       question_text: qText,
       image_url: qImageUrl,
+      difficulty: qDifficulty, // <--- TAMBAH DIFFICULTY
       explanation: qExplanation,
       type: qType 
     };
@@ -226,6 +231,7 @@ const AdminPanel: React.FC = () => {
     setQText(q.question_text || '');
     setQImageUrl(q.image_url || '');
     setQExplanation(q.explanation || '');
+    setQDifficulty(q.difficulty || 3); // Load Difficulty
 
     if (q.type === 'MULTIPLE_CHOICE') {
       setQChoices(q.choices || { A: '', B: '', C: '', D: '', E: '' });
@@ -262,11 +268,15 @@ const AdminPanel: React.FC = () => {
       package_id: selectedPkg.id,
       title: stTitle,
       duration_minutes: parseInt(stDuration) || 30,
+      video_drive_id: stVideoId || null, // <--- SIMPAN VIDEO DRIVE ID
       created_at: new Date().toISOString()
     }]);
 
     if (!error) {
       alert("Subtes berhasil dibuat!");
+      setStTitle('Penalaran Umum');
+      setStDuration('30');
+      setStVideoId(''); // Reset form
       fetchSubtestsForPackage(selectedPkg.id); 
     } else {
       alert("Gagal: " + error.message);
@@ -283,28 +293,27 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  // ... (CSV Upload Logic sama persis)
   const downloadTemplate = () => {
     const headers = [
-      "Subject", "Question Type", "Passage (Optional)", "Image URL (Optional)", 
+      "Subject", "Question Type", "Difficulty (1-5)", "Passage (Optional)", "Image URL (Optional)", 
       "Question Text", "Opt A / Stmt 1", "Opt B / Stmt 2", "Opt C / Stmt 3", 
       "Opt D / Stmt 4", "Opt E / Stmt 5", "Answer / Correct Value", "Explanation"
-    ];
+    ]; // Ditambah kolom Difficulty
     
     const sampleMC = [
-      "Penalaran Umum", "MULTIPLE_CHOICE", "Teks bacaan panjang ditaruh di sini", "https://web.com/gambar.png", 
+      "Penalaran Umum", "MULTIPLE_CHOICE", "3", "Teks bacaan panjang ditaruh di sini", "https://web.com/gambar.png", 
       "Berapa hasil dari 1 + 1?", "1", "2", "3", "4", "5", 
       "B", "Karena 1 ditambah 1 sama dengan 2."
     ];
 
     const sampleComplex = [
-      "Literasi Bahasa Indonesia", "COMPLEX_MULTIPLE_CHOICE", "", "", 
+      "Literasi Bahasa Indonesia", "COMPLEX_MULTIPLE_CHOICE", "4", "", "", 
       "Tentukan benar salah dari pernyataan berikut berdasarkan teks!", "Bumi itu bulat", "Matahari mengelilingi bumi", "Air mendidih pada suhu 100C", 
       "", "", "B,S,B", "Penjelasan fakta alam semesta."
     ];
 
     const sampleShort = [
-      "Pengetahuan Kuantitatif", "SHORT_ANSWER", "", "", 
+      "Pengetahuan Kuantitatif", "SHORT_ANSWER", "5", "", "", 
       "Berapakah akar kuadrat dari 144?", "", "", "", 
       "", "", "12", "Akar 144 adalah 12, tidak perlu dijelaskan lebih lanjut."
     ];
@@ -318,12 +327,13 @@ const AdminPanel: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "Template_Soal_Deans_Lab_V2.csv");
+    link.setAttribute("download", "Template_Soal_Deans_Lab_V3.csv"); // Ganti nama V3
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
+  // --- UPGRADE: Logika Pemrosesan Upload CSV yang Tahan Banting ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedPkg) return;
@@ -335,7 +345,8 @@ const AdminPanel: React.FC = () => {
         const csvText = event.target?.result as string;
         const rows = parseCSV(csvText);
         
-        const payload = rows.slice(1).filter(r => r.length >= 11 && r[4]?.trim()).map((row, idx) => {
+        // Pelonggaran batas kolom
+        const payload = rows.slice(1).filter(r => r.length >= 6 && r[5]?.trim()).map((row, idx) => {
            const subject = row[0]?.trim() || 'Penalaran Umum';
            
            let type = 'MULTIPLE_CHOICE';
@@ -343,18 +354,19 @@ const AdminPanel: React.FC = () => {
            if (rawType === 'SHORT_ANSWER' || rawType === 'ISIAN SINGKAT') type = 'SHORT_ANSWER';
            if (rawType === 'COMPLEX_MULTIPLE_CHOICE' || rawType === 'BENAR SALAH') type = 'COMPLEX_MULTIPLE_CHOICE';
 
-           const passage = row[2]?.trim() || '';
-           const image_url = row[3]?.trim() || '';
-           const question_text = row[4]?.trim() || '';
+           const difficulty = parseInt(row[2]?.trim()) || 3; // Parsing Difficulty
+           const passage = row[3]?.trim() || '';
+           const image_url = row[4]?.trim() || '';
+           const question_text = row[5]?.trim() || '';
            
-           const optA = row[5]?.trim() || '';
-           const optB = row[6]?.trim() || '';
-           const optC = row[7]?.trim() || '';
-           const optD = row[8]?.trim() || '';
-           const optE = row[9]?.trim() || '';
+           const optA = row[6]?.trim() || '';
+           const optB = row[7]?.trim() || '';
+           const optC = row[8]?.trim() || '';
+           const optD = row[9]?.trim() || '';
+           const optE = row[10]?.trim() || '';
            
-           const rawAnswer = row[10]?.trim() || '';
-           const explanation = row[11]?.trim() || '';
+           const rawAnswer = row[11]?.trim() || '';
+           const explanation = row[12]?.trim() || '';
 
            let choices = null;
            let correct_answer = null;
@@ -385,6 +397,7 @@ const AdminPanel: React.FC = () => {
               id: `q-${Date.now()}-${idx}`,
               package_id: selectedPkg.id,
               subject: subject,
+              difficulty: difficulty,
               passage: passage,
               image_url: image_url,
               question_text: question_text,
@@ -561,7 +574,6 @@ const AdminPanel: React.FC = () => {
               <input value={newPkgPrice} onChange={(e) => setNewPkgPrice(e.target.value)} type="number" className="w-full p-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 ring-blue-100 transition-all" placeholder="0 untuk gratis" />
             </div>
 
-            {/* FIELD BARU: LINK LYNK.ID */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                 <LinkIcon size={12} /> Link Checkout Lynk.id
@@ -583,10 +595,6 @@ const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* ... SISA KODE (SUBTEST MANAGER & QUESTION EDITOR) TIDAK BERUBAH ... */}
-      {/* ... Copy bagian bawah dari kode lama kamu mulai dari {currentView === 'subtest-manager' && ... sampai selesai ... */}
-      
-      {/* Agar tidak kepanjangan, saya cut di sini. Tapi di kode aslimu, pastikan bagian bawahnya tetap ada ya! */}
       {/* VIEW: MANAJER SUBTES */}
       {currentView === 'subtest-manager' && (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -610,6 +618,13 @@ const AdminPanel: React.FC = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase">Durasi (Menit)</label>
                   <input value={stDuration} onChange={(e) => setStDuration(e.target.value)} type="number" className="w-full p-3 rounded-xl bg-slate-50 border-none outline-none focus:ring-2 ring-purple-200 transition-all text-sm" placeholder="30" />
                 </div>
+                
+                {/* TAMBAHAN INPUT VIDEO DRIVE ID */}
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase">ID Video G-Drive (Opsional)</label>
+                  <input value={stVideoId} onChange={(e) => setStVideoId(e.target.value)} type="text" className="w-full p-3 rounded-xl bg-slate-50 border-none outline-none focus:ring-2 ring-purple-200 transition-all text-sm" placeholder="Contoh: 1A-b2C3d..." />
+                </div>
+
                 <button onClick={handleSaveSubtest} disabled={isLoading} className="w-full py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-200">
                   {isLoading ? <Loader2 className="animate-spin mx-auto" /> : 'Simpan Subtes'}
                 </button>
@@ -625,7 +640,9 @@ const AdminPanel: React.FC = () => {
                       <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center font-black text-purple-600 shadow-sm">{idx + 1}</div>
                       <div>
                         <p className="font-bold text-slate-700">{st.title}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">ID: {st.id}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">
+                          ID: {st.id} {st.video_drive_id && <span className="ml-2 text-emerald-500">| VIDEO ✅</span>}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -722,6 +739,25 @@ const AdminPanel: React.FC = () => {
                       {type.label}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* TINGKAT KESULITAN (IRT) */}
+              <div className="space-y-3 p-4 bg-orange-50 rounded-2xl border border-orange-100">
+                <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-1">
+                   <TrendingUp size={14} /> Tingkat Kesulitan (IRT)
+                </label>
+                <div className="flex gap-2">
+                   {[1, 2, 3, 4, 5].map(lvl => (
+                      <button 
+                        key={lvl} 
+                        onClick={() => setQDifficulty(lvl)} 
+                        className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all border-2 
+                           ${qDifficulty === lvl ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-orange-200 text-orange-400 hover:bg-orange-100'}`}
+                      >
+                         Level {lvl}
+                      </button>
+                   ))}
                 </div>
               </div>
 
@@ -835,6 +871,7 @@ const AdminPanel: React.FC = () => {
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-[10px] font-black text-[#1e3a8a] bg-blue-100 px-3 py-1 rounded-full uppercase">{q.subject}</span>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">{q.type?.replace(/_/g, ' ')}</span>
+                        <span className="text-[10px] font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-md">Lvl {q.difficulty || 3}</span>
                       </div>
                       <p className="font-medium text-slate-700 text-sm line-clamp-2">{q.question_text || "Teks soal kosong"}</p>
                    </div>
