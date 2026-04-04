@@ -24,8 +24,8 @@ const MathText: React.FC<MathTextProps> = ({ content, className = '' }) => {
         remarkPlugins={[remarkMath]}
         rehypePlugins={[rehypeKatex]}
       >
-        {/* Mengganti baris baru (\n) menjadi <br> agar paragraf admin tetap rapi */}
-        {safeContent.replace(/\n/gi, '\n\n')}
+        {/* Ganti logika replace dengan menambahkan dua spasi sebelum \n */}
+        {safeContent.replace(/\n/g, '  \n')}
       </ReactMarkdown>
     </div>
   );
